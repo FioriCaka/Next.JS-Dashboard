@@ -1,0 +1,120 @@
+// Prisma schema for dashboard app
+// SQLite for quick local development
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Kpi {
+  id        Int      @id @default(autoincrement())
+  revenue   Int
+  orders    Int
+  customers Int
+  refunds   Int
+  createdAt DateTime @default(now())
+}
+
+model SeriesPoint {
+  id        Int      @id @default(autoincrement())
+  label     String
+  value     Int
+  idx       Int
+  createdAt DateTime @default(now())
+  @@index([idx])
+}
+
+model Contact {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdById Int?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+  orgId     Int?
+  org       Organization? @relation(fields: [orgId], references: [id])
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  password  String   // bcrypt hash
+  createdAt DateTime @default(now())
+  contacts  Contact[]
+  memberships Membership[]
+  totpSecret String? // base32 TOTP secret if 2FA enabled
+  emailVerifiedAt DateTime?
+  verificationTokens VerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  entity    String
+  entityId  Int
+  action    String   // CREATE | UPDATE | DELETE
+  actorId   Int?
+  data      String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([actorId])
+}
+
+// Multi-tenant orgs and roles
+model Organization {
+  id         Int          @id @default(autoincrement())
+  name       String
+  createdAt  DateTime     @default(now())
+  contacts   Contact[]
+  memberships Membership[]
+  invitations Invitation[]
+}
+
+model Membership {
+  id        Int    @id @default(autoincrement())
+  userId    Int
+  orgId     Int
+  role      String // 'owner' | 'admin' | 'editor' | 'viewer'
+  createdAt DateTime @default(now())
+  user      User @relation(fields: [userId], references: [id])
+  org       Organization @relation(fields: [orgId], references: [id])
+  @@unique([userId, orgId])
+  @@index([orgId])
+}
+
+model Invitation {
+  id        Int      @id @default(autoincrement())
+  orgId     Int
+  email     String
+  token     String   @unique
+  createdAt DateTime @default(now())
+  acceptedAt DateTime?
+  org       Organization @relation(fields: [orgId], references: [id])
+  @@index([orgId])
+}
+
+model VerificationToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  user      User @relation(fields: [userId], references: [id])
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  user      User @relation(fields: [userId], references: [id])
+}
